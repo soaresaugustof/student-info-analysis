@@ -1,6 +1,6 @@
 "use client"
 
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, Label } from "recharts"
 import type { StudentData } from "@/lib/types"
 
 interface OverviewProps {
@@ -8,8 +8,6 @@ interface OverviewProps {
 }
 
 export function Overview({ data }: OverviewProps) {
-  console.log("Overview - received data:", data.length)
-
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-[350px] text-muted-foreground">
@@ -18,11 +16,10 @@ export function Overview({ data }: OverviewProps) {
     )
   }
 
-  // Prepare data for grouped bar chart by discipline (Contexto 1)
   const getMedian = (arr: number[]) => {
+    if (arr.length === 0) return 0
     const sorted = [...arr].sort((a, b) => a - b)
     const mid = Math.floor(sorted.length / 2)
-    if (sorted.length === 0) return 0
     return sorted.length % 2 !== 0
       ? Number(sorted[mid].toFixed(1))
       : Number(((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1))
@@ -31,22 +28,20 @@ export function Overview({ data }: OverviewProps) {
   const chartData = [
     {
       disciplina: "Matemática",
-      média: data.length > 0 ? Number((data.reduce((sum, student) => sum + (typeof student.math_score === 'number' ? student.math_score : 0), 0) / data.length).toFixed(1)) : 0,
-      mediana: getMedian(data.map((s) => typeof s.math_score === 'number' ? s.math_score : 0)),
+      média: data.length > 0 ? Number((data.reduce((sum, student) => sum + student.math_score, 0) / data.length).toFixed(1)) : 0,
+      mediana: getMedian(data.map((s) => s.math_score)),
     },
     {
       disciplina: "Leitura",
-      média: data.length > 0 ? Number((data.reduce((sum, student) => sum + (typeof student.reading_score === 'number' ? student.reading_score : 0), 0) / data.length).toFixed(1)) : 0,
-      mediana: getMedian(data.map((s) => typeof s.reading_score === 'number' ? s.reading_score : 0)),
+      média: data.length > 0 ? Number((data.reduce((sum, student) => sum + student.reading_score, 0) / data.length).toFixed(1)) : 0,
+      mediana: getMedian(data.map((s) => s.reading_score)),
     },
     {
       disciplina: "Escrita",
-      média: data.length > 0 ? Number((data.reduce((sum, student) => sum + (typeof student.writing_score === 'number' ? student.writing_score : 0), 0) / data.length).toFixed(1)) : 0,
-      mediana: getMedian(data.map((s) => typeof s.writing_score === 'number' ? s.writing_score : 0)),
+      média: data.length > 0 ? Number((data.reduce((sum, student) => sum + student.writing_score, 0) / data.length).toFixed(1)) : 0,
+      mediana: getMedian(data.map((s) => s.writing_score)),
     },
   ]
-
-  console.log("Overview chart data:", chartData)
 
   return (
     <ResponsiveContainer width="100%" height={350}>
@@ -61,11 +56,19 @@ export function Overview({ data }: OverviewProps) {
       >
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="disciplina" />
-        <YAxis domain={[0, 100]} />
-        <Tooltip />
+        <YAxis domain={[0, 100]}>
+          <Label value="Notas" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+        </YAxis>
+        <Tooltip
+          cursor={{ fill: 'hsla(var(--muted))' }}
+          contentStyle={{
+            backgroundColor: 'hsl(var(--background))',
+            borderColor: 'hsl(var(--border))',
+          }}
+        />
         <Legend />
-        <Bar dataKey="média" name="Média" fill="#8884d8" />
-        <Bar dataKey="mediana" name="Mediana" fill="#82ca9d" />
+        <Bar dataKey="média" name="Média" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="mediana" name="Mediana" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )
