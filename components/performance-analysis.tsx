@@ -80,10 +80,14 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
       leitura: count > 0 ? Number((leitura / count).toFixed(1)) : 0,
       escrita: count > 0 ? Number((escrita / count).toFixed(1)) : 0,
     }))
-    .sort((a, b) => (a.série > b.série ? 1 : -1))
+    .sort((a, b) => (String(a.série) > String(b.série) ? 1 : -1))
 
-  // Colors
-  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300"]
+  // Colors for Pass/Fail Pie Chart
+  const RESULT_COLORS: { [key: string]: string } = {
+    Pass: "#22c55e", // green-500
+    Fail: "#ef4444", // red-500
+    "N/A": "#a8a29e", // stone-400
+  }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -110,7 +114,7 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
       <Card className="col-span-1">
         <CardHeader>
           <CardTitle>Distribuição de Aprovação/Reprovação</CardTitle>
-          <CardDescription>Proporção entre Aprovado e Reprovado (Contexto 3)</CardDescription>
+          <CardDescription>Proporção entre Pass e Fail (Contexto 3)</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -125,8 +129,8 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
                 dataKey="value"
                 label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
               >
-                {resultData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                {resultData.map((entry) => (
+                  <Cell key={`cell-${entry.name}`} fill={RESULT_COLORS[entry.name] || "#3b82f6"} />
                 ))}
               </Pie>
               <Tooltip />

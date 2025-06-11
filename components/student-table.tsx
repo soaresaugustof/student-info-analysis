@@ -100,7 +100,7 @@ export function StudentTable({ data }: StudentTableProps) {
       cell: ({ row }) => {
         const result = row.getValue("final_result") as string
         return (
-          <div className={`font-medium ${result === "Aprovado" ? "text-green-600" : "text-red-600"}`}>
+          <div className={`font-medium ${result === "Pass" ? "text-green-600" : "text-red-600"}`}>
             {result}
           </div>
         )

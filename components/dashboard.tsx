@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Papa, { ParseError, ParseResult } from "papaparse"
+import Papa, { ParseConfig, ParseResult } from "papaparse"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Overview } from "@/components/overview"
@@ -15,24 +15,37 @@ import { CorrelationAnalysis } from "@/components/correlation-analysis"
 import { BoxplotAnalysis } from "@/components/boxplot-analysis"
 import type { StudentData, FilterState } from "@/lib/types"
 
-// Função para mapear nomes de colunas do CSV para o tipo StudentData
-const mapRowToStudentData = (row: any): StudentData => ({
-  student_id: row["student_id"],
-  name: row["name"],
-  gender: row["gender"],
-  age: Number(row["age"]) || 0,
-  grade_level: row["grade_level"],
-  math_score: Number(row["math score"]) || 0,
-  reading_score: Number(row["reading score"]) || 0,
-  writing_score: Number(row["writing score"]) || 0,
-  attendance_rate: Number(row["attendance_rate"]) || 0,
-  parent_education: row["parental level of education"],
-  study_hours: Number(row["study hours"]) || 0,
-  internet_access: row["internet access"],
-  lunch_type: row["lunch"],
-  extra_activities: row["test preparation course"],
-  final_result: row["final_result"],
-})
+// Helper para converter valores para número de forma segura
+const parseSafeNumber = (value: any): number => {
+  if (value === null || value === undefined) return 0
+  if (typeof value === "number") return value
+  if (typeof value === "string") {
+    const num = parseFloat(value.replace(",", "."))
+    return isNaN(num) ? 0 : num
+  }
+  return 0
+}
+
+// Mapeamento flexível que aceita variações nos nomes das colunas
+const mapRowToStudentData = (row: any): StudentData => {
+  return {
+    student_id: String(row["student_id"] ?? ""),
+    name: row["name"] || "",
+    gender: row["gender"] || "",
+    age: parseSafeNumber(row["age"]),
+    grade_level: String(row["grade_level"] ?? ""),
+    math_score: parseSafeNumber(row["math score"] || row["math_score"]),
+    reading_score: parseSafeNumber(row["reading score"] || row["reading_score"]),
+    writing_score: parseSafeNumber(row["writing score"] || row["writing_score"]),
+    attendance_rate: parseSafeNumber(row["attendance_rate"] || row["attendance rate"]),
+    parent_education: row["parental level of education"] || row["parent_education"],
+    study_hours: parseSafeNumber(row["study hours"] || row["study_hours"]),
+    internet_access: row["internet access"] || row["internet_access"],
+    lunch_type: row["lunch"] || "",
+    extra_activities: row["test preparation course"] || row["extra_activities"],
+    final_result: row["final_result"] || "",
+  }
+}
 
 export default function Dashboard() {
   const [students, setStudents] = useState<StudentData[]>([])
@@ -46,122 +59,115 @@ export default function Dashboard() {
     parentEducation: "all",
   })
 
+  const parseAndSetData = (csvText: string) => {
+    if (!csvText || typeof csvText !== "string") {
+      setError("Arquivo CSV inválido ou vazio.")
+      setIsLoading(false)
+      return
+    }
+
+    const firstLine = csvText.substring(0, csvText.indexOf("\n"))
+    const detectedDelimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ";" : ","
+    console.log(`[Dashboard] Delimitador detectado: '${detectedDelimiter}'`)
+
+    const config: ParseConfig = {
+      delimiter: detectedDelimiter,
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: true,
+      transformHeader: (header) => header.trim().toLowerCase(),
+      complete: (results: ParseResult<any>) => {
+        if (results.errors.length) {
+          console.error("Erros de parse:", results.errors)
+          setError("Erro ao ler o arquivo CSV. Verifique o delimitador e as aspas.")
+          setIsLoading(false)
+          return
+        }
+        
+        console.log("[Dashboard] Cabeçalhos do CSV (processados):", results.meta.fields);
+        console.log("[Dashboard] Primeira linha de dados brutos:", results.data[0]);
+
+        try {
+          const parsedData = results.data.filter((row: any) => row.student_id && row.name).map(mapRowToStudentData)
+          
+          if (parsedData.length === 0) {
+            setError("Nenhum dado de aluno válido encontrado. Verifique se os nomes das colunas (student_id, name) estão corretos no arquivo.")
+            setIsLoading(false)
+            return
+          }
+          
+          console.log("[Dashboard] Primeira linha de dados mapeados:", parsedData[0]);
+
+          setStudents(parsedData)
+          setFilteredStudents(parsedData)
+        } catch (err) {
+          console.error("Erro ao processar dados mapeados:", err)
+          setError("Ocorreu um erro ao processar os dados do arquivo.")
+        } finally {
+          setIsLoading(false)
+        }
+      },
+    }
+    Papa.parse(csvText, config)
+  }
+
   const handleFileUpload = (file: File) => {
     setIsLoading(true)
     setError(null)
-    const reader = new FileReader();
+    const reader = new FileReader()
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      Papa.parse(text, {
-        header: true,
-        complete: (results: ParseResult<any>) => {
-          try {
-            const parsedData = results.data
-              .filter((row: any) => row.student_id && row.name) // Filter out empty rows
-              .map(mapRowToStudentData)
-
-            console.log("Parsed data:", parsedData.slice(0, 3))
-            setStudents(parsedData)
-            setFilteredStudents(parsedData)
-            setIsLoading(false)
-          } catch (err) {
-            console.error("Error processing data:", err)
-            setError("Erro ao processar os dados do arquivo")
-            setIsLoading(false)
-          }
-        },
-        error: (error: ParseError) => {
-          console.error("Error parsing CSV:", error)
-          setError("Erro ao ler o arquivo CSV")
-          setIsLoading(false)
-        },
-      } as any) // <-- Força o tipo para evitar erro de overload
-    };
-    reader.readAsText(file);
+      const text = e.target?.result as string
+      parseAndSetData(text)
+    }
+    reader.onerror = () => {
+      setError("Falha ao ler o arquivo.")
+      setIsLoading(false)
+    }
+    reader.readAsText(file)
   }
 
   useEffect(() => {
-    // Apply filters
     let result = [...students]
-
     if (filters.gender !== "all") {
       result = result.filter((student) => student.gender === filters.gender)
     }
-
     if (filters.gradeLevel !== "all") {
-      result = result.filter((student) => student.grade_level === filters.gradeLevel)
+      result = result.filter((student) => String(student.grade_level) === filters.gradeLevel)
     }
-
     if (filters.finalResult !== "all") {
       result = result.filter((student) => student.final_result === filters.finalResult)
     }
-
     if (filters.parentEducation !== "all") {
-      result = result.filter((student) => student.parent_education === filters.parentEducation)
+      result = result.filter(
+        (student) => (student.parent_education || "Não especificado") === filters.parentEducation
+      )
     }
-
     setFilteredStudents(result)
   }, [filters, students])
 
   useEffect(() => {
-    // Load CSV data on component mount
     const loadCSVData = async () => {
+      setIsLoading(true)
+      setError(null)
       try {
-        setIsLoading(true)
-        setError(null)
-        console.log("Loading CSV data from URL...")
-
         const response = await fetch(
-          "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/student_info-Oo9xIxxKUEWLsxpw27UlBW2dD40FSn.csv",
+          "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/student_info-Oo9xIxxKUEWLsxpw27UlBW2dD40FSn.csv"
         )
-
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
-
         const csvText = await response.text()
-        console.log("CSV text length:", csvText.length)
-
-        Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results: ParseResult<any>) => {
-            try {
-              console.log("Parse results:", results.data.length, "rows")
-
-              const parsedData = results.data
-                .filter((row: any) => row.student_id && row.name) // Filter out empty rows
-                .map(mapRowToStudentData)
-
-              console.log(`Successfully loaded ${parsedData.length} student records`)
-              console.log("Sample data:", parsedData.slice(0, 3))
-
-              setStudents(parsedData)
-              setFilteredStudents(parsedData)
-              setIsLoading(false)
-            } catch (err) {
-              console.error("Error processing parsed data:", err)
-              setError("Erro ao processar os dados")
-              setIsLoading(false)
-            }
-          },
-          error: (error: ParseError) => {
-            console.error("Error parsing CSV:", error)
-            setError("Erro ao analisar o arquivo CSV")
-            setIsLoading(false)
-          },
-        } as any) // <-- Força o tipo para evitar erro de overload
+        parseAndSetData(csvText)
       } catch (error) {
-        console.error("Error fetching CSV:", error)
-        setError("Erro ao carregar os dados")
+        console.error("Erro ao buscar CSV:", error)
+        setError("Não foi possível carregar os dados. Verifique a conexão.")
         setIsLoading(false)
       }
     }
-
     loadCSVData()
   }, [])
-
-  if (error) {
+  
+    if (error) {
     return (
       <DashboardShell>
         <div className="flex items-center justify-center h-[400px] text-center">
@@ -170,7 +176,7 @@ export default function Dashboard() {
             <p className="text-muted-foreground">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
             >
               Tentar novamente
             </button>
@@ -220,9 +226,10 @@ export default function Dashboard() {
                 <div className="text-2xl font-bold">
                   {filteredStudents.length > 0
                     ? (
-                        filteredStudents.reduce((sum, student) => sum + student.math_score, 0) / filteredStudents.length
+                        filteredStudents.reduce((sum, student) => sum + student.math_score, 0) /
+                        filteredStudents.length
                       ).toFixed(1)
-                    : "0"}
+                    : "0.0"}
                 </div>
                 <p className="text-xs text-muted-foreground">{isLoading ? "Carregando..." : "De 100 pontos"}</p>
               </CardContent>
@@ -234,10 +241,16 @@ export default function Dashboard() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {filteredStudents.length > 0
-                    ? `${((filteredStudents.filter((s) => s.final_result === "Aprovado").length / filteredStudents.length) * 100).toFixed(1)}%`
-                    : "0%"}
+                    ? `${(
+                        (filteredStudents.filter((s) => s.final_result === "Pass").length /
+                          filteredStudents.length) *
+                        100
+                      ).toFixed(1)}%`
+                    : "0.0%"}
                 </div>
-                <p className="text-xs text-muted-foreground">{isLoading ? "Carregando..." : "Dos alunos filtrados"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {isLoading ? "Carregando..." : "Dos alunos filtrados"}
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -247,8 +260,11 @@ export default function Dashboard() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {filteredStudents.length > 0
-                    ? `${(filteredStudents.reduce((sum, student) => sum + student.attendance_rate, 0) / filteredStudents.length).toFixed(2)}%`
-                    : "0%"}
+                    ? `${(
+                        filteredStudents.reduce((sum, student) => sum + student.attendance_rate, 0) /
+                        filteredStudents.length
+                      ).toFixed(2)}%`
+                    : "0.00%"}
                 </div>
                 <p className="text-xs text-muted-foreground">{isLoading ? "Carregando..." : "Taxa de presença"}</p>
               </CardContent>
@@ -278,7 +294,9 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  <div className="flex items-center justify-center h-[200px] text-muted-foreground">Carregando...</div>
+                  <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                    Carregando...
+                  </div>
                 ) : (
                   <RecentStudents data={filteredStudents.slice(0, 5)} />
                 )}

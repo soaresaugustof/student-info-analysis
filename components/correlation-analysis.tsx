@@ -77,7 +77,7 @@ export function CorrelationAnalysis({ data }: CorrelationAnalysisProps) {
   const educationData = Array.from(
     data.reduce(
       (acc, student) => {
-        const education = student.parent_education || "N/A"
+        const education = student.parent_education || "Não especificado"
         if (!acc.has(education)) {
           acc.set(education, {
             education,

@@ -24,10 +24,13 @@ export function FilterBar({ filters, setFilters, data }: FilterBarProps) {
   const [openEducation, setOpenEducation] = useState(false)
 
   // Extract unique values from data
-  const genders = ["all", ...new Set(data.map((item) => item.gender))].filter(Boolean)
-  const gradeLevels = ["all", ...new Set(data.map((item) => item.grade_level.toString()))].filter(Boolean)
-  const results = ["all", ...new Set(data.map((item) => item.final_result))].filter(Boolean)
-  const educationLevels = ["all", ...new Set(data.map((item) => item.parent_education))].filter(Boolean)
+  const genders = ["all", ...Array.from(new Set(data.map((item) => item.gender).filter(Boolean))).sort()]
+  const gradeLevels = ["all", ...Array.from(new Set(data.map((item) => String(item.grade_level)))).sort()]
+  const results = ["all", ...Array.from(new Set(data.map((item) => item.final_result).filter(Boolean))).sort()]
+  const educationLevels = [
+    "all",
+    ...Array.from(new Set(data.map((item) => item.parent_education || "Não especificado"))).sort(),
+  ]
 
   const activeFiltersCount = Object.values(filters).filter((value) => value !== "all").length
 
@@ -192,7 +195,10 @@ export function FilterBar({ filters, setFilters, data }: FilterBarProps) {
                     key={level}
                     value={level}
                     onSelect={(currentValue) => {
-                      setFilters((prev) => ({ ...prev, parentEducation: currentValue === "all" ? "all" : currentValue }))
+                      setFilters((prev) => ({
+                        ...prev,
+                        parentEducation: currentValue === "all" ? "all" : currentValue,
+                      }))
                       setOpenEducation(false)
                     }}
                   >

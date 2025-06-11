@@ -26,7 +26,7 @@ export function RecentStudents({ data }: RecentStudentsProps) {
             <div className="ml-auto font-medium">
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  student.final_result === "Aprovado" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                  student.final_result === "Pass" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
                 }`}
               >
                 {student.final_result}
