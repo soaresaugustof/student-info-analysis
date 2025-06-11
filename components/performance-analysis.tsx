@@ -14,6 +14,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Label,
 } from "recharts"
 
 interface PerformanceAnalysisProps {
@@ -21,8 +22,6 @@ interface PerformanceAnalysisProps {
 }
 
 export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
-  console.log("Performance Analysis - received data:", data.length)
-
   if (!data || data.length === 0) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -35,7 +34,6 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
     )
   }
 
-  // Contexto 2: Quantidade de alunos por gênero (Gráfico de barras)
   const genderData = Array.from(
     data.reduce((acc, student) => {
       const gender = student.gender || "Não informado"
@@ -44,7 +42,6 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
     }, new Map<string, number>()),
   ).map(([name, value]) => ({ name, value }))
 
-  // Contexto 3: Distribuição de aprovação/reprovação (Gráfico de pizza)
   const resultData = Array.from(
     data.reduce((acc, student) => {
       const result = student.final_result || "N/A"
@@ -53,7 +50,6 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
     }, new Map<string, number>()),
   ).map(([name, value]) => ({ name, value }))
 
-  // Contexto 4: Média das notas por série escolar (Gráfico de barras agrupadas)
   const gradeLevelData = Array.from(
     data.reduce((acc, student) => {
       const gradeLevel = student.grade_level?.toString() || "N/A"
@@ -67,9 +63,9 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
         })
       }
       const current = acc.get(gradeLevel)!
-      current.matemática += typeof student.math_score === 'number' ? student.math_score : 0
-      current.leitura += typeof student.reading_score === 'number' ? student.reading_score : 0
-      current.escrita += typeof student.writing_score === 'number' ? student.writing_score : 0
+      current.matemática += student.math_score
+      current.leitura += student.reading_score
+      current.escrita += student.writing_score
       current.count += 1
       return acc
     }, new Map<string, { série: string; matemática: number; leitura: number; escrita: number; count: number }>()),
@@ -82,39 +78,41 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
     }))
     .sort((a, b) => (String(a.série) > String(b.série) ? 1 : -1))
 
-  // Colors for Pass/Fail Pie Chart
   const RESULT_COLORS: { [key: string]: string } = {
-    Pass: "#22c55e", // green-500
-    Fail: "#ef4444", // red-500
-    "N/A": "#a8a29e", // stone-400
+    Pass: "hsl(var(--chart-2))",
+    Fail: "hsl(var(--destructive))",
+    "N/A": "hsl(var(--muted-foreground))",
   }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {/* Contexto 2: Quantidade de alunos por gênero */}
       <Card className="col-span-1">
         <CardHeader>
-          <CardTitle>Quantidade de Alunos por Gênero</CardTitle>
-          <CardDescription>Distribuição dos alunos por gênero (Contexto 2)</CardDescription>
+          <CardTitle>Alunos por Gênero</CardTitle>
+          <CardDescription>Contagem total de alunos por gênero.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={genderData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#8884d8" name="Quantidade" />
+              <YAxis>
+                <Label value="Nº de Alunos" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+              </YAxis>
+              <Tooltip
+                cursor={{ fill: 'hsla(var(--muted))' }}
+                contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
+              />
+              <Bar dataKey="value" fill="hsl(var(--chart-1))" name="Quantidade" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Contexto 3: Distribuição de aprovação/reprovação */}
       <Card className="col-span-1">
         <CardHeader>
-          <CardTitle>Distribuição de Aprovação/Reprovação</CardTitle>
-          <CardDescription>Proporção entre Pass e Fail (Contexto 3)</CardDescription>
+          <CardTitle>Distribuição de Resultados</CardTitle>
+          <CardDescription>Proporção de alunos aprovados e reprovados.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -125,38 +123,44 @@ export function PerformanceAnalysis({ data }: PerformanceAnalysisProps) {
                 cy="50%"
                 labelLine={false}
                 outerRadius={80}
-                fill="#8884d8"
+                fill="hsl(var(--primary))"
                 dataKey="value"
                 label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
               >
                 {resultData.map((entry) => (
-                  <Cell key={`cell-${entry.name}`} fill={RESULT_COLORS[entry.name] || "#3b82f6"} />
+                  <Cell key={`cell-${entry.name}`} fill={RESULT_COLORS[entry.name] || "hsl(var(--muted))"} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip
+                contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
+              />
               <Legend />
             </PieChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Contexto 4: Média das notas por série escolar */}
       <Card className="col-span-1 md:col-span-2 lg:col-span-1">
         <CardHeader>
           <CardTitle>Média das Notas por Série</CardTitle>
-          <CardDescription>Comparação por grade_level (Contexto 4)</CardDescription>
+          <CardDescription>Desempenho médio dos alunos em cada série.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={gradeLevelData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="série" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <YAxis domain={[0, 100]}>
+                <Label value="Nota Média" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+              </YAxis>
+              <Tooltip
+                cursor={{ fill: 'hsla(var(--muted))' }}
+                contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
+              />
               <Legend />
-              <Bar dataKey="matemática" name="Matemática" fill="#8884d8" />
-              <Bar dataKey="leitura" name="Leitura" fill="#82ca9d" />
-              <Bar dataKey="escrita" name="Escrita" fill="#ffc658" />
+              <Bar dataKey="matemática" name="Matemática" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="leitura" name="Leitura" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="escrita" name="Escrita" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
