@@ -15,15 +15,30 @@ import {
   LineChart,
   BarChart,
   Bar,
+  Label,
 } from "recharts"
 
 interface CorrelationAnalysisProps {
   data: StudentData[]
 }
 
-export function CorrelationAnalysis({ data }: CorrelationAnalysisProps) {
-  console.log("Correlation Analysis data:", data.length)
+const CustomTooltip = ({ active, payload, label, title }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="p-2 border bg-background rounded-md shadow-lg text-xs">
+        <p className="font-bold mb-1">{`${title}: ${label}`}</p>
+        {payload.map((p: any, index: number) => (
+          <p key={index} style={{ color: p.color }}>
+            {`${p.name}: ${p.value}`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
+export function CorrelationAnalysis({ data }: CorrelationAnalysisProps) {
   if (data.length === 0) {
     return (
       <div className="grid gap-4 md:grid-cols-2">
@@ -36,65 +51,52 @@ export function CorrelationAnalysis({ data }: CorrelationAnalysisProps) {
     )
   }
 
-  // Contexto 5: Correlação entre horas de estudo e notas (Gráfico de dispersão)
   const studyHoursData = data
-    .filter((student) => typeof student.study_hours === 'number' && typeof student.math_score === 'number')
     .map((student) => ({
-      studyHours: student.study_hours ?? 0,
+      studyHours: student.study_hours,
       averageScore: Number(
-        (((student.math_score ?? 0) + (student.reading_score ?? 0) + (student.writing_score ?? 0)) / 3).toFixed(1),
+        ((student.math_score + student.reading_score + student.writing_score) / 3).toFixed(1)
       ),
     }))
-    .filter((d) => d.studyHours > 0 || d.averageScore > 0)
 
-  // Contexto 6: Relação entre frequência e notas médias (Gráfico de linha)
   const attendanceGroups = data.reduce(
     (acc, student) => {
-      const attendanceKey = Math.round((student.attendance_rate ?? 0) / 10) * 10
+      const attendanceKey = Math.round(student.attendance_rate / 10) * 10
       if (!acc[attendanceKey]) {
-        acc[attendanceKey] = { mathTotal: 0, readingTotal: 0, writingTotal: 0, count: 0 }
+        acc[attendanceKey] = { totals: { math: 0, reading: 0, writing: 0 }, count: 0 }
       }
-      acc[attendanceKey].mathTotal += typeof student.math_score === 'number' ? student.math_score : 0
-      acc[attendanceKey].readingTotal += typeof student.reading_score === 'number' ? student.reading_score : 0
-      acc[attendanceKey].writingTotal += typeof student.writing_score === 'number' ? student.writing_score : 0
+      acc[attendanceKey].totals.math += student.math_score
+      acc[attendanceKey].totals.reading += student.reading_score
+      acc[attendanceKey].totals.writing += student.writing_score
       acc[attendanceKey].count += 1
       return acc
     },
-    {} as Record<number, { mathTotal: number; readingTotal: number; writingTotal: number; count: number }>,
+    {} as Record<number, { totals: { math: number; reading: number; writing: number }; count: number }>,
   )
 
   const attendanceData = Object.entries(attendanceGroups)
     .map(([attendance, d]) => ({
       attendance: Number(attendance),
-      mathAvg: d.count > 0 ? Number((d.mathTotal / d.count).toFixed(1)) : 0,
-      readingAvg: d.count > 0 ? Number((d.readingTotal / d.count).toFixed(1)) : 0,
-      writingAvg: d.count > 0 ? Number((d.writingTotal / d.count).toFixed(1)) : 0,
+      Matemática: d.count > 0 ? Number((d.totals.math / d.count).toFixed(1)) : 0,
+      Leitura: d.count > 0 ? Number((d.totals.reading / d.count).toFixed(1)) : 0,
+      Escrita: d.count > 0 ? Number((d.totals.writing / d.count).toFixed(1)) : 0,
     }))
     .sort((a, b) => a.attendance - b.attendance)
-    .filter((d) => d.mathAvg > 0 || d.readingAvg > 0 || d.writingAvg > 0)
 
-  // Contexto 7: Impacto do nível educacional dos pais nas notas (Gráfico de barras agrupadas)
   const educationData = Array.from(
     data.reduce(
       (acc, student) => {
         const education = student.parent_education || "Não especificado"
         if (!acc.has(education)) {
-          acc.set(education, {
-            education,
-            matemática: 0,
-            leitura: 0,
-            escrita: 0,
-            count: 0,
-          })
+          acc.set(education, { education, matemática: 0, leitura: 0, escrita: 0, count: 0, })
         }
         const current = acc.get(education)!
-        current.matemática += typeof student.math_score === 'number' ? student.math_score : 0
-        current.leitura += typeof student.reading_score === 'number' ? student.reading_score : 0
-        current.escrita += typeof student.writing_score === 'number' ? student.writing_score : 0
+        current.matemática += student.math_score
+        current.leitura += student.reading_score
+        current.escrita += student.writing_score
         current.count += 1
         return acc
-      },
-      new Map<string, { education: string; matemática: number; leitura: number; escrita: number; count: number }>(),
+      }, new Map<string, { education: string; matemática: number; leitura: number; escrita: number; count: number }>(),
     ),
   )
     .map(([_, { education, matemática, leitura, escrita, count }]) => ({
@@ -103,68 +105,77 @@ export function CorrelationAnalysis({ data }: CorrelationAnalysisProps) {
       leitura: count > 0 ? Number((leitura / count).toFixed(1)) : 0,
       escrita: count > 0 ? Number((escrita / count).toFixed(1)) : 0,
     }))
-    .filter((d) => d.matemática > 0 || d.leitura > 0 || d.escrita > 0)
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {/* Contexto 5: Correlação entre horas de estudo e notas */}
       <Card className="col-span-1">
         <CardHeader>
-          <CardTitle>Horas de Estudo vs Desempenho</CardTitle>
-          <CardDescription>Correlação entre study_hours e notas (Contexto 5)</CardDescription>
+          <CardTitle>Horas de Estudo vs. Desempenho</CardTitle>
+          <CardDescription>Visualização da correlação entre horas de estudo e a nota média final.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <ScatterChart data={studyHoursData}>
+            <ScatterChart>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="studyHours" name="Horas de Estudo" />
-              <YAxis dataKey="averageScore" name="Nota Média" domain={[0, 100]} />
-              <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-              <Scatter name="Nota Média" data={studyHoursData} fill="#8884d8" />
+              <XAxis type="number" dataKey="studyHours" name="Horas de Estudo">
+                <Label value="Horas de Estudo" offset={-5} position="insideBottom" />
+              </XAxis>
+              <YAxis type="number" dataKey="averageScore" name="Nota Média" domain={[0, 100]}>
+                 <Label value="Nota Média" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+              </YAxis>
+              <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ backgroundColor: 'hsl(var(--background))' }} />
+              <Scatter name="Nota Média por Horas de Estudo" data={studyHoursData} fill="hsl(var(--chart-1))" />
             </ScatterChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Contexto 6: Relação entre frequência e notas médias */}
       <Card className="col-span-1">
         <CardHeader>
-          <CardTitle>Frequência vs Notas Médias</CardTitle>
-          <CardDescription>Correlação entre attendance_rate e média das notas (Contexto 6)</CardDescription>
+          <CardTitle>Frequência vs. Notas Médias</CardTitle>
+          <CardDescription>Análise da tendência das notas conforme a taxa de frequência.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
             <LineChart data={attendanceData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="attendance" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <XAxis type="number" dataKey="attendance" tickFormatter={(tick) => `${tick}%`}>
+                 <Label value="Faixa de Frequência" offset={-5} position="insideBottom" />
+              </XAxis>
+              <YAxis domain={[0, 100]}>
+                <Label value="Nota Média" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+              </YAxis>
+              <Tooltip content={<CustomTooltip title="Frequência" />} />
               <Legend />
-              <Line type="monotone" dataKey="mathAvg" name="Matemática" stroke="#8884d8" strokeWidth={2} />
-              <Line type="monotone" dataKey="readingAvg" name="Leitura" stroke="#82ca9d" strokeWidth={2} />
-              <Line type="monotone" dataKey="writingAvg" name="Escrita" stroke="#ffc658" strokeWidth={2} />
+              <Line type="monotone" dataKey="Matemática" stroke="hsl(var(--chart-1))" strokeWidth={2} />
+              <Line type="monotone" dataKey="Leitura" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+              <Line type="monotone" dataKey="Escrita" stroke="hsl(var(--chart-3))" strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Contexto 7: Impacto do nível educacional dos pais nas notas */}
       <Card className="col-span-1 md:col-span-2">
         <CardHeader>
           <CardTitle>Impacto da Educação dos Pais no Desempenho</CardTitle>
-          <CardDescription>Desempenho médio por parent_education (Contexto 7)</CardDescription>
+          <CardDescription>Comparativo do desempenho médio dos alunos segundo o nível educacional dos pais.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={educationData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="education" angle={-45} textAnchor="end" height={80} />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <XAxis dataKey="education" angle={-45} textAnchor="end" height={80} interval={0} />
+              <YAxis domain={[0, 100]}>
+                <Label value="Nota Média" angle={-90} position="insideLeft" style={{ textAnchor: 'middle' }} />
+              </YAxis>
+              <Tooltip
+                cursor={{ fill: 'hsla(var(--muted))' }}
+                contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}
+              />
               <Legend />
-              <Bar dataKey="matemática" name="Matemática" fill="#8884d8" />
-              <Bar dataKey="leitura" name="Leitura" fill="#82ca9d" />
-              <Bar dataKey="escrita" name="Escrita" fill="#ffc658" />
+              <Bar dataKey="matemática" name="Matemática" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="leitura" name="Leitura" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="escrita" name="Escrita" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
